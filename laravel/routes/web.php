@@ -13,6 +13,9 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::get('/', function () {
-    return view('welcome');
-});
+// Route::get('/', function () {
+//     return view('welcome');
+// });
+
+//google検索結果一覧
+Route::get('/', [App\Http\Controllers\GoogleSearchController::class, 'index'])->name('google-search.index');
