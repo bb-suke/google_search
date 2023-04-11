@@ -33,56 +33,56 @@ class GoogleSearchController extends BaseController
         $displayItems = [];
 
         if (!empty($searchRequest)) {
+            for ($i = 0; $i <= $totalPageNum; $i++) {
+                //MEMO リクエスト出来るクエリの項目はこちらで確認できます-> https://developers.google.com/custom-search/v1/reference/rest/v1/cse/list?hl=ja
+                $requestParams = array(
+                    'key' => $apiKey,
+                    'cx' => $cx,
+                    'q' => $searchRequest,
+                    'alt' => 'json',
+                    'start' => $startNum, //取得スタート位置
+                    'num' => $displayItemNum, //MEMO 検索結果の取得数指定
+                    'excludeTerms' => '' //MEMO 検索結果に含めないキーワード
+                );
 
-        for ($i=0; $i <= $totalPageNum ; $i++) {
-            //MEMO リクエスト出来るクエリの項目はこちらで確認できます-> https://developers.google.com/custom-search/v1/reference/rest/v1/cse/list?hl=ja
-            $requestParams = array(
-                'key' => $apiKey,
-                'cx' => $cx,
-                'q' => $searchRequest,
-                'alt' => 'json',
-                'start' => $startNum, //取得スタート位置
-                'num' => $displayItemNum, //MEMO 検索結果の取得数指定
-                'excludeTerms' => '' //MEMO 検索結果に含めないキーワード
-            );
+                $requestGoogleSearchUrl = $googleSearchUrl . http_build_query($requestParams);;
 
-            $requestGoogleSearchUrl = $googleSearchUrl . http_build_query($requestParams);;
+                //MEMO エラー時もコンテンツを取得する
+                $option = array("https" => array('ignore_errors' => true));
+                $responseJson = file_get_contents($requestGoogleSearchUrl, false, stream_context_create($option));
+                $convertedResponseArray = json_decode($responseJson, true);
 
-            //MEMO エラー時もコンテンツを取得する
-            $option = array("https" => array('ignore_errors' => true));
-            $responseJson = file_get_contents($requestGoogleSearchUrl, false, stream_context_create($option));
-            $convertedResponseArray = json_decode($responseJson, true);
+                $searchInfo = [];
+                if (isset($convertedResponseArray['searchInformation'])) {
+                    $searchInfo = $convertedResponseArray['searchInformation'];
+                }
 
-            $searchInfo = [];
-            if (isset($convertedResponseArray['searchInformation'])) {
-                $searchInfo = $convertedResponseArray['searchInformation'];
+                if (empty($searchInfo)) {
+                    return;
+                }
+                $searchInfos[] = $searchInfo;
+
+                $responseItems = [];
+                if (isset($convertedResponseArray['items'])) {
+                    $responseItems = array_reduce($convertedResponseArray['items'], function ($prev, $item) {
+                        return [
+                            ...$prev,
+                            collect($item)
+                        ];
+                    }, []);
+                }
+
+                if (empty($responseItems)) {
+                    return;
+                }
+                $displayItems[] = $responseItems;
+
+                $startNum = $startNum + $displayItemNum;
             }
-
-            if(empty($searchInfo)){
-                return ;
-            }
-            $searchInfos[] = $searchInfo;
-
-            $responseItems = [];
-            if (isset($convertedResponseArray['items'])) {
-                $responseItems = array_reduce($convertedResponseArray['items'], function ($prev, $item) {
-                    return [
-                        ...$prev,
-                        collect($item)
-                    ];
-                }, []);
-            }
-
-            if(empty($responseItems)){
-                return ;
-            }
-            $displayItems[] = $responseItems;
-
-            $startNum = $startNum + $displayItemNum;
         }
-    }
+        
         $requestPageNum = $request['page'] ? $request['page'] : 1;
-        $collectedResponseItems = new LengthAwarePaginator(collect($displayItems)->get($requestPageNum - 1) , count($displayItems), 1, $requestPageNum);
+        $collectedResponseItems = new LengthAwarePaginator(collect($displayItems)->get($requestPageNum - 1), count($displayItems), 1, $requestPageNum);
 
         return view('google-search.index', compact('searchInfos', 'collectedResponseItems', 'searchRequest', 'page'));
     }
